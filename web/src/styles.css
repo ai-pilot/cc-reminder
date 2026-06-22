@@ -85,3 +85,28 @@ label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px
 .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal .actions { display: flex; gap: 8px; margin-top: 18px; }
 .modal .actions .btn { flex: 1; }
+
+/* ---- v2: colored card header, balance row, payment button ---- */
+.card { padding: 0; overflow: hidden; }
+.cardtop {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; color: #fff;
+}
+.cardtop .bankname { font-size: 15px; font-weight: 600; flex: 1; letter-spacing: -0.01em; }
+.cardtop .curtag {
+  font-size: 11px; font-weight: 600; background: rgba(255,255,255,.22);
+  padding: 2px 8px; border-radius: 999px;
+}
+.cardtop .del {
+  background: rgba(255,255,255,.18); border: none; color: #fff;
+  width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.cardtop .del:hover { background: rgba(255,255,255,.35); }
+.cardbody { padding: 14px 16px 16px; }
+
+.balrow { display: flex; justify-content: space-between; align-items: flex-start; cursor: pointer; margin-bottom: 14px; }
+.balrow .bigv { font-size: 22px; font-weight: 700; margin: 2px 0 0; letter-spacing: -0.02em; }
+
+.btn.pay { color: var(--accent); border-color: var(--accent-soft); }
+.btn.pay:hover { border-color: var(--accent); }
+.logrow + .logrow { margin-top: 8px; }
