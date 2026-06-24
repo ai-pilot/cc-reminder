@@ -2,7 +2,6 @@ name: daily-reminders
 
 on:
   schedule:
-    # 11 AM Gulf time (UAE, UTC+4). Change if you're elsewhere.
     - cron: '0 7 * * *'
   workflow_dispatch: {}
 
@@ -10,10 +9,10 @@ jobs:
   remind:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - name: Install deps
         working-directory: bot
         run: npm install
