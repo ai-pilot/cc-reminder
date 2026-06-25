@@ -164,3 +164,13 @@ label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---- auth screen & sign-out ---- */
+.authwrap { min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+.authcard { background: var(--ink-2); border: 1px solid var(--line); border-radius: 20px; padding: 34px 32px; width: 100%; max-width: 400px; }
+.authcard .title { font-family: var(--display); font-weight: 500; font-size: 30px; margin: 6px 0 0; letter-spacing: -0.02em; }
+.authcard .title em { font-style: italic; color: var(--brass); }
+.authmsg { background: var(--brass-soft); border: 1px solid var(--brass); color: var(--brass); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 4px 0 14px; }
+.authswap { text-align: center; color: var(--muted); font-size: 13px; margin: 16px 0 0; }
+.authswap button { background: none; border: none; color: var(--brass); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+.whoami { flex: 1; color: var(--muted); font-size: 13px; }

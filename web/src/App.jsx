@@ -54,24 +54,32 @@ const blankCard = () => ({
 });
 
 export default function App() {
-  const [owner, setOwner] = useState(localStorage.getItem("cc_owner") || "");
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(null);
   const [historyFor, setHistoryFor] = useState(null);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const userId = session?.user?.id || null;
+
   async function load() {
-    if (!owner) { setCards([]); return; }
+    if (!userId) { setCards([]); return; }
     setLoading(true);
-    const { data } = await supabase.from("cards").select("*").eq("owner", owner).order("created_at");
+    const { data } = await supabase.from("cards").select("*").order("created_at");
     setCards(data || []);
     setLoading(false);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [owner]);
-  function saveOwner(v) { setOwner(v); localStorage.setItem("cc_owner", v); }
+  useEffect(() => { if (userId) load(); else setCards([]); /* eslint-disable-next-line */ }, [userId]);
 
   async function upsert(card) {
-    const payload = { ...card, owner };
+    const payload = { ...card, owner: userId };
     if (card.id) await supabase.from("cards").update(payload).eq("id", card.id);
     else await supabase.from("cards").insert(payload);
     setEditing(null); load();
@@ -137,6 +145,9 @@ export default function App() {
     return out;
   }, [cards]);
 
+  if (!authReady) return <div className="wrap"><div className="empty">Loading…</div></div>;
+  if (!session) return <Auth />;
+
   return (
     <div className="wrap">
       <div className="masthead">
@@ -156,10 +167,9 @@ export default function App() {
       </div>
 
       <div className="toolbar">
-        <div className="identity">
-          <input placeholder="Your name or email" value={owner} onChange={(e) => saveOwner(e.target.value)} />
-        </div>
+        <span className="whoami">{session.user.email}</span>
         <button className="btn ghost" onClick={load}>Refresh</button>
+        <button className="btn ghost" onClick={() => supabase.auth.signOut()}>Sign out</button>
       </div>
 
       {alerts.length > 0 && (
@@ -169,9 +179,7 @@ export default function App() {
         </div>
       )}
 
-      {!owner ? (
-        <div className="empty">Enter your name or email above to open your vault.</div>
-      ) : loading ? (
+      {loading ? (
         <div className="empty">Loading…</div>
       ) : cards.length === 0 ? (
         <div className="empty">Your vault is empty. Tap <strong>Add card</strong> to add your first one.</div>
@@ -191,6 +199,70 @@ export default function App() {
 
       {editing && <Editor initial={editing} onCancel={() => setEditing(null)} onSave={upsert} />}
       {historyFor && <History card={historyFor} onClose={() => setHistoryFor(null)} />}
+    </div>
+  );
+}
+
+function Auth() {
+  const [mode, setMode] = useState("signin"); // or "signup"
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function submit() {
+    setMsg(""); setBusy(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email, password: pw });
+        if (error) throw error;
+        setMsg("Account created. If email confirmation is on, check your inbox, then sign in.");
+        setMode("signin");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+        if (error) throw error;
+      }
+    } catch (e) {
+      setMsg(e.message || "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="authwrap">
+      <div className="authcard">
+        <p className="eyebrow">Personal card vault</p>
+        <h1 className="title">Card <em>reminder</em></h1>
+        <p className="sub" style={{ marginBottom: 24 }}>
+          {mode === "signin" ? "Sign in to see your cards." : "Create an account to start tracking."}
+        </p>
+
+        <div className="field">
+          <label>Email</label>
+          <input type="email" autoComplete="email" value={email}
+            placeholder="you@email.com" onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Password</label>
+          <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            value={pw} placeholder="••••••••" onChange={(e) => setPw(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()} />
+        </div>
+
+        {msg && <p className="authmsg">{msg}</p>}
+
+        <button className="btn primary" style={{ width: "100%", marginTop: 6 }} disabled={busy} onClick={submit}>
+          {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+        </button>
+
+        <p className="authswap">
+          {mode === "signin" ? "No account yet?" : "Already have an account?"}{" "}
+          <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(""); }}>
+            {mode === "signin" ? "Sign up" : "Sign in"}
+          </button>
+        </p>
+      </div>
     </div>
   );
 }
@@ -310,6 +382,8 @@ function Editor({ initial, onCancel, onSave }) {
   function save() {
     onSave({
       ...f,
+      statement_day: clampDay(f.statement_day),
+      payment_day: clampDay(f.payment_day),
       credit_limit: parse(f.credit_limit),
       monthly_target: parse(f.monthly_target),
       balance: parse(f.balance),
@@ -365,11 +439,15 @@ function Editor({ initial, onCancel, onSave }) {
         <div className="row2">
           <div className="field">
             <label>Statement day (1–31)</label>
-            <input inputMode="numeric" value={f.statement_day} onChange={(e) => set("statement_day", clampDay(e.target.value))} />
+            <input inputMode="numeric" value={f.statement_day}
+              onChange={(e) => set("statement_day", e.target.value.replace(/[^\d]/g, "").slice(0, 2))}
+              onBlur={(e) => set("statement_day", clampDay(e.target.value))} />
           </div>
           <div className="field">
             <label>Payment due day (1–31)</label>
-            <input inputMode="numeric" value={f.payment_day} onChange={(e) => set("payment_day", clampDay(e.target.value))} />
+            <input inputMode="numeric" value={f.payment_day}
+              onChange={(e) => set("payment_day", e.target.value.replace(/[^\d]/g, "").slice(0, 2))}
+              onBlur={(e) => set("payment_day", clampDay(e.target.value))} />
           </div>
         </div>
         <div className="field">
