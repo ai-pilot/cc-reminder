@@ -51,6 +51,7 @@ const blankCard = () => ({
   name: "", currency: "AED", credit_limit: 100000, monthly_target: 5000,
   balance: 0, cycle_spend: 0, cycle_paid: 0, statement_day: 5, payment_day: 25,
   telegram_chat_id: "", cashback_rules: blankRules(), spend_by_cat: {}, history: [],
+  last4: "", month_spend: 0, month_spend_key: "",
 });
 
 export default function App() {
@@ -90,10 +91,14 @@ export default function App() {
     const v = parse(amount); if (v <= 0) return;
     const sbc = { ...(card.spend_by_cat || {}) };
     sbc[cat] = (Number(sbc[cat]) || 0) + v;
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const sameMonth = card.month_spend_key === monthKey;
     await supabase.from("cards").update({
       spend_by_cat: sbc,
       cycle_spend: Number(card.cycle_spend) + v,
       balance: Number(card.balance) + v,
+      month_spend: (sameMonth ? Number(card.month_spend) || 0 : 0) + v,
+      month_spend_key: monthKey,
     }).eq("id", card.id);
     load();
   }
@@ -279,6 +284,8 @@ function Vault({ c, onEdit, onDelete, onSpend, onPay, onClose, onHistory }) {
   const usePct = c.monthly_target > 0 ? Math.min(100, Math.round((c.cycle_spend / c.monthly_target) * 100)) : 0;
   const balPct = c.credit_limit > 0 ? Math.min(100, Math.round((c.balance / c.credit_limit) * 100)) : 0;
   const cb = computeCashback(c, c.spend_by_cat || {});
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const thisMonthSpend = c.month_spend_key === monthKey ? Number(c.month_spend) || 0 : 0;
 
   return (
     <div className="vault">
@@ -304,6 +311,7 @@ function Vault({ c, onEdit, onDelete, onSpend, onPay, onClose, onHistory }) {
         <div className="metarow">
           <div className="meta"><p className="k">Statement</p><p className="v num">{fmtDate(stmt)}</p></div>
           <div className="meta"><p className="k">Payment due</p><p className={"v num" + (dPay <= 3 ? " due" : "")}>{fmtDate(payD)} · {dPay}d</p></div>
+          <div className="meta"><p className="k">This month</p><p className="v num">{money(thisMonthSpend, cur)}</p></div>
         </div>
 
         <div className="cashbox">
@@ -456,9 +464,16 @@ function Editor({ initial, onCancel, onSave }) {
               onBlur={(e) => set("payment_day", clampDay(e.target.value))} />
           </div>
         </div>
-        <div className="field">
-          <label>Telegram chat ID (for reminders)</label>
-          <input value={f.telegram_chat_id || ""} placeholder="from your bot setup" onChange={(e) => set("telegram_chat_id", e.target.value)} />
+        <div className="row2">
+          <div className="field">
+            <label>Last 4 digits (for SMS matching)</label>
+            <input inputMode="numeric" value={f.last4 || ""} placeholder="1234" maxLength={4}
+              onChange={(e) => set("last4", e.target.value.replace(/[^\d]/g, "").slice(0, 4))} />
+          </div>
+          <div className="field">
+            <label>Telegram chat ID (for reminders)</label>
+            <input value={f.telegram_chat_id || ""} placeholder="from your bot setup" onChange={(e) => set("telegram_chat_id", e.target.value)} />
+          </div>
         </div>
 
         <hr style={{ border: "none", borderTop: "1px solid var(--line)", margin: "20px 0 16px" }} />
