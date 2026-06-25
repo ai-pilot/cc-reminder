@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const TG = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}`;
-const GEMINI_MODEL = "gemini-3.5-flash"; // update to whatever model your AI Studio key supports
+const GEMINI_MODEL = "gemini-2.5-flash"; // update to whatever model your AI Studio key supports
 
 const CATEGORIES = ["Groceries","Dining","Travel","Fuel","Shopping","Online","Bills & Utilities","Education","Entertainment","International","Other"];
 const CONFIDENCE_THRESHOLD = 0.7; // auto-log at/above this, ask below
