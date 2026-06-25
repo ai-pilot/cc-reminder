@@ -359,12 +359,18 @@ function Editor({ initial, onCancel, onSave }) {
   const setRules = (r) => setF((p) => ({ ...p, cashback_rules: r }));
   const clampDay = (v) => Math.min(31, Math.max(1, Number(String(v).replace(/[^\d]/g, "")) || 1));
 
-  function applyTemplate(name) {
-    const t = TEMPLATES[name];
+  // whether the user has manually typed a name; if not, templates may set it
+  const [nameTouched, setNameTouched] = useState(!!initial.name);
+
+  function applyTemplate(tname) {
+    const t = TEMPLATES[tname];
     if (!t) return;
-    set("currency", t.currency);
-    if (!f.name) set("name", name);
-    setRules({ base: t.base, minSpend: t.minSpend, needsVerify: t.needsVerify, rules: t.rules.map((r) => ({ ...r })) });
+    setF((p) => ({
+      ...p,
+      currency: t.currency,
+      name: nameTouched ? p.name : tname,
+      cashback_rules: { base: t.base, minSpend: t.minSpend, needsVerify: t.needsVerify, rules: t.rules.map((r) => ({ ...r })) },
+    }));
   }
   function addRule() {
     const used = f.cashback_rules.rules.map((r) => r.category);
@@ -412,7 +418,7 @@ function Editor({ initial, onCancel, onSave }) {
 
         <div className="field">
           <label>Card name (include the bank)</label>
-          <input value={f.name} placeholder="e.g. ADCB 365 Cashback" onChange={(e) => set("name", e.target.value)} />
+          <input value={f.name} placeholder="e.g. ADCB 365 Cashback" onChange={(e) => { setNameTouched(true); set("name", e.target.value); }} />
         </div>
         <div className="row2">
           <div className="field">
