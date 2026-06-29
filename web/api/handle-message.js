@@ -23,6 +23,7 @@ const CONFIDENCE_THRESHOLD = 0.7; // auto-log a spend at/above this, otherwise a
 const SYM = { AED:"AED ", INR:"₹", USD:"$", EUR:"€", GBP:"£", SAR:"SAR " };
 const money = (n,c="AED") => (SYM[c]||"AED ") + Math.round(Number(n)||0).toLocaleString("en-US");
 const num = (x) => Number(x) || 0;
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /* ---------- dates (month-end aware, mirrors the web app & cron) ---------- */
 const today = new Date();
@@ -104,9 +105,13 @@ async function onText(msg) {
     .select("*").in("card_id", cardIds).order("created_at", { ascending: false }).limit(200);
 
   const snapshot = buildSnapshot(cards, txns || []);
-  const result = await askGemini(text, cards, snapshot);
-  if (!result) return say(chatId, "Sorry, I had trouble with that. Try again, or forward a bank SMS to log a spend.");
-
+  const res = await askGemini(text, cards, snapshot);
+  if (!res.ok) {
+    return say(chatId, res.busy
+      ? "Google's AI is briefly overloaded (high demand). Give it a few seconds and send that again. 🙏"
+      : "Sorry, I had trouble with that. Try again, or forward a bank SMS to log a spend.");
+  }
+  const result = res.data || {};
   const act = result.action || { type: "none" };
   switch (act.type) {
     case "log_spend":          return handleLogSpend(chatId, cards, act);
@@ -398,18 +403,34 @@ User message: """${text}"""`;
   };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0 },
-    }),
+  const reqBody = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0 },
   });
-  if (!r.ok) { console.error("Gemini error", await r.text()); return null; }
-  const data = await r.json();
-  const out = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  try { return JSON.parse(out); } catch { return null; }
+
+  // Flash models hit transient 503 "high demand" spikes — retry those (and 429/500)
+  // a couple of times with backoff instead of giving up on the first try.
+  const RETRIABLE = new Set([429, 500, 503]);
+  let sawTransient = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(600 * attempt); // 0ms, 600ms, 1200ms
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+      body: reqBody,
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const out = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      try { return { ok: true, data: JSON.parse(out) }; }
+      catch { return { ok: false, busy: false }; } // got a response but it wasn't valid JSON
+    }
+    const status = r.status;
+    console.error(`Gemini error (attempt ${attempt + 1}, status ${status})`, await r.text());
+    if (RETRIABLE.has(status)) { sawTransient = true; continue; }
+    return { ok: false, busy: false }; // hard failure (bad key/model/request) — don't retry
+  }
+  return { ok: false, busy: sawTransient }; // exhausted retries; busy => it was overloaded
 }
 
 function chunk(arr, n) {
