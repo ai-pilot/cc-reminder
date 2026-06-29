@@ -3,13 +3,14 @@
 An open-source credit-card payment & usage reminder app. Track up to as many cards as you
 like, and get **Telegram** reminders:
 
-- **Payment reminder** — pings you 3 days before each card's payment due date.
-- **Usage reminder** — pings you 15 days before the statement date if you haven't hit the
+- **Payment reminder** — pings you from 7 days before each card's payment due date.
+- **Usage reminder** — pings you every day until the payment date while you haven't hit the
   monthly spend target you set for that card.
-- **Daily follow-up** — after a due/cutoff date passes, it keeps reminding you every day at
-  **11:00 AM** until you tap **✅ Done**.
-- **Approve each step** — every reminder has `✅ Done` / `⏰ Snooze` buttons. Nothing is marked
-  handled until you approve it.
+- **Approve each step** — every reminder has `✅ Done` / `⏰ Snooze` buttons. Tapping ✅ stops
+  that reminder for the rest of the cycle; it resets automatically next cycle.
+- **Chat with the bot** — forward a bank SMS to log a spend, or just type: "paid 500 on ADCB",
+  "delete last payment", "this month spend till date?", "cashback on ADCB Traveller?",
+  "last 5 spends?". Gemini reads your live card data and answers.
 
 Self-hosted, free, and shareable: your friends either open your live link or fork and run
 their own copy.
@@ -21,9 +22,9 @@ their own copy.
 ```
 cc-reminder/
 ├── web/                          React tracker UI (deploy to Vercel/Netlify)
-├── bot/                          Telegram reminder + webhook scripts
-│   ├── check-and-notify.js       runs daily, sends reminders
-│   └── handle-button.js          handles ✅ Done / ⏰ Snooze taps
+│   └── api/handle-message.js     Telegram webhook — SMS logging, chat, button taps
+├── bot/
+│   └── check-and-notify.js       runs daily (GitHub Actions), sends reminders
 ├── supabase/schema.sql           database tables — paste into Supabase SQL editor
 ├── .github/workflows/reminder.yml  daily 11 AM cron (GitHub Actions)
 ├── .env.example                  copy to .env and fill in
@@ -124,9 +125,8 @@ Each morning the job loads every card and checks, per card:
 
 | Reminder        | Fires when                                                              |
 |-----------------|------------------------------------------------------------------------|
-| Payment due     | payment date is 0–3 days away                                          |
-| Monthly usage   | statement date is 0–15 days away **and** `used < monthly_target`       |
-| Daily follow-up | a payment/statement date has passed and the card isn't marked `done`   |
+| Payment due     | payment date is 0–7 days away **and** balance owed > 0                 |
+| Monthly usage   | every day up to the payment date while `cycle_spend < monthly_target`  |
 
 Tapping **✅ Done** in Telegram sets the card's status to done for this cycle, so it stops
 reminding. The status resets automatically when the next cycle begins.

@@ -100,6 +100,7 @@ export default function App() {
       month_spend: (sameMonth ? Number(card.month_spend) || 0 : 0) + v,
       month_spend_key: monthKey,
     }).eq("id", card.id);
+    await supabase.from("transactions").insert({ card_id: card.id, owner: userId, type: "spend", category: cat, amount: v });
     load();
   }
   async function addPayment(card, amount) {
@@ -108,6 +109,7 @@ export default function App() {
       cycle_paid: Number(card.cycle_paid) + v,
       balance: Math.max(0, Number(card.balance) - v),
     }).eq("id", card.id);
+    await supabase.from("transactions").insert({ card_id: card.id, owner: userId, type: "payment", amount: v });
     load();
   }
 
@@ -140,12 +142,11 @@ export default function App() {
     const out = [];
     for (const c of cards) {
       const pay = nextDate(c.payment_day), dPay = daysUntil(pay);
-      if (dPay >= 0 && dPay <= 3 && Number(c.balance) > 0)
+      if (dPay >= 0 && dPay <= 7 && Number(c.balance) > 0)
         out.push(<><b>{c.name}</b>: payment of {money(c.balance, c.currency)} due in {dPay} day{dPay === 1 ? "" : "s"} ({fmtDate(pay)}).</>);
-      const stmt = nextDate(c.statement_day), dStmt = daysUntil(stmt);
       const remaining = Math.max(0, Number(c.monthly_target) - Number(c.cycle_spend));
-      if (dStmt >= 0 && dStmt <= 15 && remaining > 0)
-        out.push(<><b>{c.name}</b>: {dStmt} days to statement, {money(remaining, c.currency)} left to hit your spend goal.</>);
+      if (remaining > 0 && dPay >= 0)
+        out.push(<><b>{c.name}</b>: {money(remaining, c.currency)} left to hit your spend goal (by {fmtDate(pay)}).</>);
     }
     return out;
   }, [cards]);

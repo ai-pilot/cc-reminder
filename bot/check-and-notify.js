@@ -103,20 +103,20 @@ async function main() {
     }
 
     const pay = nextDate(c.payment_day), dPay = daysUntil(pay);
-    const stmt = nextDate(c.statement_day), dStmt = daysUntil(stmt);
 
-    // payment reminder: within 3 days, only if balance owed
-    if (!c.payment_done && dPay >= 0 && dPay <= 3 && Number(c.balance) > 0) {
+    // payment reminder: from 7 days before the payment date, only if balance owed
+    if (!c.payment_done && dPay >= 0 && dPay <= 7 && Number(c.balance) > 0) {
       const when = dPay === 0 ? "today" : `in ${dPay} day${dPay === 1 ? "" : "s"}`;
       await send(c.telegram_chat_id, `🔔 ${c.name}\nPayment due ${when} (${fmtDate(pay)}).\nBalance: ${money(c.balance, cur)}.`, c.id, "payment");
       sent++;
     }
 
-    // spend-goal reminder: within 15 days of statement, if goal not hit
+    // spend-goal reminder: every day until the payment date, until the goal is hit
     const remaining = Math.max(0, Number(c.monthly_target) - Number(c.cycle_spend));
-    if (!c.usage_done && dStmt >= 0 && dStmt <= 15 && remaining > 0) {
+    if (!c.usage_done && remaining > 0 && dPay >= 0) {
+      const when = dPay === 0 ? "today" : `in ${dPay} day${dPay === 1 ? "" : "s"}`;
       await send(c.telegram_chat_id,
-        `💳 ${c.name}\n${dStmt} day${dStmt === 1 ? "" : "s"} to statement. Spend ${money(remaining, cur)} more to hit your ${money(c.monthly_target, cur)} goal.`,
+        `💳 ${c.name}\nSpend ${money(remaining, cur)} more to hit your ${money(c.monthly_target, cur)} monthly goal (${money(c.cycle_spend, cur)} so far).\nPayment due ${when} (${fmtDate(pay)}).`,
         c.id, "usage");
       sent++;
     }
